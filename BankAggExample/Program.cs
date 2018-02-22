@@ -73,6 +73,10 @@ namespace BankAggExample
         {
             var containerBuilder = new ContainerBuilder();
 
+            // add MediatR to the container and have it look for any handlers
+            // in the current assembly
+            containerBuilder.AddMediatR(typeof(Program).Assembly);
+
             // in memory event store - only want one event store ever
             containerBuilder.RegisterType<InMemoryEventStore>().As<IEventStore>().SingleInstance();
 
