@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using System.Text;
 using CQRSlite.Events;
 
-namespace BankAggExample.DomainEvents
+namespace BankAggExample.Domain.Events
 {
     public class AmountDeposited : IEvent
     {

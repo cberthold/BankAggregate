@@ -5,7 +5,7 @@ using System.Threading.Tasks;
 using Autofac;
 using BankAggExample.Command;
 using BankAggExample.Domain;
-using BankAggExample.DomainEvents;
+using BankAggExample.Domain.Events;
 using CQRSlite.Domain;
 using CQRSlite.Events;
 using MediatR;

@@ -1,7 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Text;
-using BankAggExample.DomainEvents;
+using BankAggExample.Domain.Events;
 using CQRSlite.Domain;
 
 namespace BankAggExample.Domain
