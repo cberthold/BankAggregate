@@ -10,6 +10,8 @@ using BankAggExample.Application.Service;
 using BankAggExample.Command;
 using BankAggExample.Domain;
 using BankAggExample.Domain.Events;
+using BankAggExample.Infrastructure;
+using BankAggExample.Infrastructure.Projections;
 using BankAggExample.Read.Projections;
 using CQRSlite.Domain;
 using CQRSlite.Events;
@@ -122,121 +124,4 @@ namespace BankAggExample
             return container;
         }
     }
-
-    #region projections
-
-    public class GenericEventPublisher : IEventPublisher
-    {
-        private readonly IMediator mediator;
-
-        public GenericEventPublisher(IMediator mediator)
-        {
-            this.mediator = mediator;
-        }
-
-        Task IEventPublisher.Publish<T>(T @event, CancellationToken cancellationToken)
-        {
-            var eventType = @event.GetType().Name;
-
-            Console.WriteLine($"Running publishers for {eventType}");
-            var events = new IEvent[] { @event };
-            var batch = new ProjectionBatch(events);
-
-            // completed normally
-            return mediator.Publish(batch, cancellationToken);
-        }
-    }
-
-    public sealed class ProjectionBatch : INotification
-    {
-        public IEnumerable<IEvent> Events { get; }
-
-        public ProjectionBatch(IEnumerable<IEvent> events)
-        {
-            Events = events;
-        }
-    }
-
-    public interface IHandleProjectedEvent<TEvent>
-        where TEvent : IEvent
-    {
-        Task HandleEvent(TEvent @event, CancellationToken cancellationToken);
-    }
-
-    public abstract class BaseProjection<TProjection> : INotificationHandler<ProjectionBatch>
-        where TProjection : BaseProjection<TProjection>
-    {
-
-        private readonly ConcurrentDictionary<Type, ProjectionHandlerDescriptor> descriptorCache = new ConcurrentDictionary<Type, ProjectionHandlerDescriptor>();
-
-        public Task Handle(ProjectionBatch projection, CancellationToken cancellationToken)
-        {
-            return HandleEvents(projection.Events, cancellationToken);
-        }
-
-        protected virtual async Task HandleEvents(IEnumerable<IEvent> events, CancellationToken cancellationToken)
-        {
-            foreach (var @event in events)
-            {
-                var descriptor = GetDescriptorForEvent(@event);
-                if (descriptor.HasHandler)
-                {
-                    await HandleEvent(@event, descriptor, cancellationToken);
-                }
-            }
-        }
-
-        private async Task HandleEvent<TEvent>(TEvent @event, ProjectionHandlerDescriptor descriptor, CancellationToken cancellationToken)
-            where TEvent : IEvent
-        {
-            var genericType = typeof(IHandleProjectedEvent<>).MakeGenericType(descriptor.EventType);
-            var genericMethod = genericType.GetMethod("HandleEvent", BindingFlags.Public);
-            var task = (Task)genericMethod.Invoke(this, new object[] { @event, cancellationToken });
-            await task.ConfigureAwait(false);
-        }
-
-        private ProjectionHandlerDescriptor GetDescriptorForEvent<TEvent>(TEvent @event)
-        {
-            var eventType = @event.GetType();
-            var projectionType = GetType();
-
-            Func<Type, ProjectionHandlerDescriptor> valueFactory = (t) =>
-            {
-                var genericInterface = typeof(IHandleProjectedEvent<>);
-                var genericInterfaceToFind = genericInterface.MakeGenericType(t);
-                var hasHandler = false;
-
-                if (projectionType.GetInterfaces().Any(b => b.Equals(genericInterfaceToFind)))
-                {
-                    hasHandler = true;
-                }
-
-                var descriptorBuilt = new ProjectionHandlerDescriptor(t, hasHandler);
-                return descriptorBuilt;
-            };
-
-            var descriptor = descriptorCache.GetOrAdd(eventType, valueFactory);
-            return descriptor;
-        }
-
-        private class ProjectionHandlerDescriptor
-        {
-            public Type EventType { get; }
-            public bool HasHandler { get; }
-
-            public ProjectionHandlerDescriptor(Type eventType, bool hasHandler)
-            {
-                EventType = eventType;
-                HasHandler = hasHandler;
-            }
-        }
-    }
-
-    
-
-    
-
-    
-
-    #endregion
 }
