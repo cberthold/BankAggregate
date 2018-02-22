@@ -4,7 +4,9 @@ using System.Linq;
 using System.Reflection;
 using System.Text;
 using Autofac;
+using Autofac.Builder;
 using Autofac.Core;
+using Autofac.Features.Scanning;
 using Autofac.Features.Variance;
 using BankAggExample.Infrastructure;
 using MediatR;
@@ -17,9 +19,10 @@ namespace Autofac
 
         private const string AsyncRequestKey = "async-handler";
 
-        public static void AddMediatR(this ContainerBuilder builder, Assembly assembly)
+        public static ContainerBuilder AddMediatR(this ContainerBuilder builder, Assembly assembly)
         {
             Decorate(builder, assembly);
+            return builder;
         }
 
         private static void RegisterRequestWithResponseDecorator(ContainerBuilder builder, Type decoratorType)
@@ -32,37 +35,58 @@ namespace Autofac
             builder.RegisterGenericDecorator(decoratorType, typeof(IRequestHandler<>), fromKey: RequestKey);
         }
 
-        private static void RegisterRequestHandlersFromAssembly(ContainerBuilder builder, Assembly assembly)
+        public static IRegistrationBuilder<object, ScanningActivatorData, DynamicRegistrationStyle> RegisterRequestHandlers(this ContainerBuilder builder, Assembly assembly)
         {
-            builder.RegisterAssemblyTypes(assembly).As(t => t.GetTypeInfo().GetInterfaces()
-                .Where(i => i.IsClosedTypeOf(typeof(IRequestHandler<,>)) || i.IsClosedTypeOf(typeof(IRequestHandler<>))).Select(i => new KeyedService(RequestKey, i)));
+            var registration = RegisterRequestHandlersFromAssembly(builder, assembly);
+
+            RegisterRequestWithResponseDecorator(builder, typeof(RequestHandlerWrapper<,>));
+            RegisterRequestDecorator(builder, typeof(RequestHandlerWrapper<>));
+
+            return registration;
         }
-        
-        private static void RegisterNotificationHandlersFromAssembly(ContainerBuilder builder, Assembly assembly)
+
+        private static IRegistrationBuilder<object, ScanningActivatorData, DynamicRegistrationStyle> RegisterRequestHandlersFromAssembly(ContainerBuilder builder, Assembly assembly)
         {
-            builder.RegisterAssemblyTypes(assembly)
+            return builder.RegisterAssemblyTypes(assembly).As(t => t.GetTypeInfo().GetInterfaces()
+                .Where(i => i.IsClosedTypeOf(typeof(IRequestHandler<,>)) || i.IsClosedTypeOf(typeof(IRequestHandler<>)))
+                .Select(i => new KeyedService(RequestKey, i)));
+        }
+
+        public static IRegistrationBuilder<object, ScanningActivatorData, DynamicRegistrationStyle> RegisterNotificationHandlers(this ContainerBuilder builder, Assembly assembly)
+        {
+            var registration = RegisterNotificationHandlersFromAssembly(builder, assembly);
+            return registration;
+        }
+
+        private static IRegistrationBuilder<object, ScanningActivatorData, DynamicRegistrationStyle> RegisterNotificationHandlersFromAssembly(ContainerBuilder builder, Assembly assembly)
+        {
+            return builder.RegisterAssemblyTypes(assembly)
                 .As(t => t.GetTypeInfo().GetInterfaces().Where(i => i.IsClosedTypeOf(typeof(INotificationHandler<>))).ToArray());
         }
         
         public static void Decorate(ContainerBuilder builder, Assembly handlersAssembly)
         {
-            builder.RegisterSource(new ContravariantRegistrationSource());
+            //builder.RegisterSource(new ContravariantRegistrationSource());
             builder.RegisterAssemblyTypes(typeof(IMediator).GetTypeInfo().Assembly).AsImplementedInterfaces();
             builder.Register<SingleInstanceFactory>(ctx =>
             {
                 var c = ctx.Resolve<IComponentContext>();
-                return t => c.Resolve(t);
+                return t =>
+                {
+                    var instance = c.Resolve(t);
+                    return instance;
+                };
             });
             builder.Register<MultiInstanceFactory>(ctx =>
             {
                 var c = ctx.Resolve<IComponentContext>();
-                return t => (IEnumerable<object>)c.Resolve(typeof(IEnumerable<>).MakeGenericType(t));
+                return t =>
+                {
+                    var returnVal = (IEnumerable<object>)c.Resolve(typeof(IEnumerable<>).MakeGenericType(t));
+                    return returnVal;
+                };
             });
-
-            RegisterRequestHandlersFromAssembly(builder, handlersAssembly);
-            RegisterNotificationHandlersFromAssembly(builder, handlersAssembly);
-            RegisterRequestWithResponseDecorator(builder, typeof(RequestHandlerWrapper<,>));
-            RegisterRequestDecorator(builder, typeof(RequestHandlerWrapper<>));
+            
         }
     }
 }

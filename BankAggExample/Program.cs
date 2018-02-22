@@ -1,5 +1,8 @@
 ﻿using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
+using System.Linq;
+using System.Reflection;
 using System.Threading;
 using System.Threading.Tasks;
 using Autofac;
@@ -78,7 +81,15 @@ namespace BankAggExample
 
             // add MediatR to the container and have it look for any handlers
             // in the current assembly
-            containerBuilder.AddMediatR(typeof(Program).Assembly);
+            containerBuilder
+                .AddMediatR(typeof(Program).Assembly)
+                .RegisterRequestHandlers(typeof(Program).Assembly)
+                .SingleInstance();
+
+            containerBuilder
+                .RegisterNotificationHandlers(typeof(Program).Assembly)
+                .AsSelf()
+                .SingleInstance();
 
             // in memory event store - only want one event store ever
             containerBuilder.RegisterType<InMemoryEventStore>().As<IEventStore>().SingleInstance();
@@ -102,28 +113,24 @@ namespace BankAggExample
             containerBuilder.RegisterType<GenericEventPublisher>().As<IEventPublisher>();
 
             // single instance - we only ever want one of these to exist - these are the projections
-            containerBuilder.RegisterType<WithdrawCounter>().AsSelf().SingleInstance();
-            containerBuilder.RegisterType<TotalBankValue>().AsSelf().SingleInstance();
-            containerBuilder.RegisterType<ConsoleWriter>().AsSelf().SingleInstance();
+            //containerBuilder.RegisterType<WithdrawCounter>().AsSelf().AsImplementedInterfaces().SingleInstance();
+            //containerBuilder.RegisterType<TotalBankValue>().AsSelf().AsImplementedInterfaces().SingleInstance();
+            //containerBuilder.RegisterType<ConsoleWriter>().AsSelf().AsImplementedInterfaces().SingleInstance();
 
             var container = containerBuilder.Build();
             return container;
         }
     }
-    
+
     #region projections
 
     public class GenericEventPublisher : IEventPublisher
     {
-        private readonly WithdrawCounter counter;
-        private readonly TotalBankValue totalBank;
-        private readonly ConsoleWriter console;
+        private readonly IMediator mediator;
 
-        public GenericEventPublisher(WithdrawCounter counter, TotalBankValue totalBank, ConsoleWriter console)
+        public GenericEventPublisher(IMediator mediator)
         {
-            this.counter = counter;
-            this.totalBank = totalBank;
-            this.console = console;
+            this.mediator = mediator;
         }
 
         Task IEventPublisher.Publish<T>(T @event, CancellationToken cancellationToken)
@@ -132,20 +139,109 @@ namespace BankAggExample
 
             Console.WriteLine($"Running publishers for {eventType}");
             var events = new IEvent[] { @event };
-            counter.CountFromEvents(events);
-            totalBank.CountFromEvents(events);
-            console.CountFromEvents(events);
+            var batch = new ProjectionBatch(events);
 
             // completed normally
-            return Task.FromResult(0);
+            return mediator.Publish(batch, cancellationToken);
         }
     }
 
-    public class WithdrawCounter
+    public sealed class ProjectionBatch : INotification
+    {
+        public IEnumerable<IEvent> Events { get; }
+
+        public ProjectionBatch(IEnumerable<IEvent> events)
+        {
+            Events = events;
+        }
+    }
+
+    public interface IHandleProjectedEvent<TEvent>
+        where TEvent : IEvent
+    {
+        Task HandleEvent(TEvent @event, CancellationToken cancellationToken);
+    }
+
+    public abstract class BaseProjection<TProjection> : INotificationHandler<ProjectionBatch>
+        where TProjection : BaseProjection<TProjection>
+    {
+
+        private readonly ConcurrentDictionary<Type, ProjectionHandlerDescriptor> descriptorCache = new ConcurrentDictionary<Type, ProjectionHandlerDescriptor>();
+
+        public Task Handle(ProjectionBatch projection, CancellationToken cancellationToken)
+        {
+            return HandleEvents(projection.Events, cancellationToken);
+        }
+
+        protected virtual async Task HandleEvents(IEnumerable<IEvent> events, CancellationToken cancellationToken)
+        {
+            foreach (var @event in events)
+            {
+                var descriptor = GetDescriptorForEvent(@event);
+                if (descriptor.HasHandler)
+                {
+                    await HandleEvent(@event, descriptor, cancellationToken);
+                }
+            }
+        }
+
+        private async Task HandleEvent<TEvent>(TEvent @event, ProjectionHandlerDescriptor descriptor, CancellationToken cancellationToken)
+            where TEvent : IEvent
+        {
+            var genericType = typeof(IHandleProjectedEvent<>).MakeGenericType(descriptor.EventType);
+            var genericMethod = genericType.GetMethod("HandleEvent", BindingFlags.Public);
+            var task = (Task)genericMethod.Invoke(this, new object[] { @event, cancellationToken });
+            await task.ConfigureAwait(false);
+        }
+
+        private ProjectionHandlerDescriptor GetDescriptorForEvent<TEvent>(TEvent @event)
+        {
+            var eventType = @event.GetType();
+            var projectionType = GetType();
+
+            Func<Type, ProjectionHandlerDescriptor> valueFactory = (t) =>
+            {
+                var genericInterface = typeof(IHandleProjectedEvent<>);
+                var genericInterfaceToFind = genericInterface.MakeGenericType(t);
+                var hasHandler = false;
+
+                if (projectionType.GetInterfaces().Any(b => b.Equals(genericInterfaceToFind)))
+                {
+                    hasHandler = true;
+                }
+
+                var descriptorBuilt = new ProjectionHandlerDescriptor(t, hasHandler);
+                return descriptorBuilt;
+            };
+
+            var descriptor = descriptorCache.GetOrAdd(eventType, valueFactory);
+            return descriptor;
+        }
+
+        private class ProjectionHandlerDescriptor
+        {
+            public Type EventType { get; }
+            public bool HasHandler { get; }
+
+            public ProjectionHandlerDescriptor(Type eventType, bool hasHandler)
+            {
+                EventType = eventType;
+                HasHandler = hasHandler;
+            }
+        }
+    }
+
+    public class WithdrawCounter : BaseProjection<WithdrawCounter>
     {
         public int Counter { get; private set; }
 
-        public void CountFromEvents(IEnumerable<IEvent> events)
+        protected override Task HandleEvents(IEnumerable<IEvent> events, CancellationToken cancellationToken)
+        {
+            CountFromEvents(events);
+            return Task.FromResult(0);
+        }
+
+        protected void CountFromEvents(IEnumerable<IEvent> events)
         {
             foreach (var @event in events)
             {
@@ -157,11 +253,17 @@ namespace BankAggExample
         }
     }
 
-    public class TotalBankValue
+    public class TotalBankValue : BaseProjection<TotalBankValue>
     {
         public decimal Value { get; private set; }
 
-        public void CountFromEvents(IEnumerable<IEvent> events)
+        protected override Task HandleEvents(IEnumerable<IEvent> events, CancellationToken cancellationToken)
+        {
+            CountFromEvents(events);
+            return Task.FromResult(0);
+        }
+
+        protected void CountFromEvents(IEnumerable<IEvent> events)
         {
             foreach (var @event in events)
             {
@@ -182,9 +284,15 @@ namespace BankAggExample
         }
     }
 
-    public class ConsoleWriter
+    public class ConsoleWriter : BaseProjection<ConsoleWriter>
     {
-        public void CountFromEvents(IEnumerable<IEvent> events)
+        protected override Task HandleEvents(IEnumerable<IEvent> events, CancellationToken cancellationToken)
+        {
+            CountFromEvents(events);
+            return Task.FromResult(0);
+        }
+
+        protected void CountFromEvents(IEnumerable<IEvent> events)
         {
             foreach (var @event in events)
             {
