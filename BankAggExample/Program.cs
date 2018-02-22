@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
 using Autofac;
+using BankAggExample.Application.Service;
 using BankAggExample.Command;
 using BankAggExample.Domain;
 using BankAggExample.Domain.Events;
@@ -109,59 +110,7 @@ namespace BankAggExample
             return container;
         }
     }
-
-    #region Bank manager
-
-    public class BankManager : IBankManager
-    {
-
-        private readonly ISession session;
-        private readonly IMediator mediator;
-        public BankManager(ISession session, IMediator mediator)
-        {
-            this.session = session;
-            this.mediator = mediator;
-        }
-
-        public async Task<Guid> CreateNewAccount()
-        {
-            var token = new CancellationToken();
-            var command = new CreateNewAccountCommand();
-            return await mediator.Send(command, token);
-        }
-
-        public async Task DepositAmount(Guid accountId, decimal amount)
-        {
-            var token = new CancellationToken();
-            var command = new DepositAmountCommand(accountId, amount);
-            await mediator.Send(command, token);
-        }
-
-        public async Task TransferFunds(Guid fromAccountId, Guid toAccountId, decimal amountToTransfer)
-        {
-            var token = new CancellationToken();
-            var command = new TransferFundsCommand(fromAccountId, toAccountId, amountToTransfer);
-            await mediator.Send(command, token);
-        }
-
-        public async Task WithdrawAmount(Guid accountId, decimal amount)
-        {
-            var token = new CancellationToken();
-            var command = new WithdrawAmountCommand(accountId, amount);
-            await mediator.Send(command, token);
-        }
-    }
-
-    public interface IBankManager
-    {
-        Task<Guid> CreateNewAccount();
-        Task DepositAmount(Guid accountId, decimal amount);
-        Task WithdrawAmount(Guid accountId, decimal amount);
-        Task TransferFunds(Guid fromAccountId, Guid toAccountId, decimal amountToTransfer);
-    }
-
-    #endregion
-
+    
     #region projections
 
     public class GenericEventPublisher : IEventPublisher
