@@ -182,9 +182,10 @@ namespace BankAggExample
             var eventType = @event.GetType().Name;
 
             Console.WriteLine($"Running publishers for {eventType}");
-            counter.CountFromEvents(@event);
-            totalBank.CountFromEvents(@event);
-            console.CountFromEvents(@event);
+            var events = new IEvent[] { @event };
+            counter.CountFromEvents(events);
+            totalBank.CountFromEvents(events);
+            console.CountFromEvents(events);
 
             // completed normally
             return Task.FromResult(0);
@@ -195,13 +196,15 @@ namespace BankAggExample
     {
         public int Counter { get; private set; }
 
-        public void CountFromEvents(IEvent @event)
+        public void CountFromEvents(IEnumerable<IEvent> events)
         {
-            if (@event is AmountWithdrawn)
+            foreach (var @event in events)
             {
-                Counter++;
+                if (@event is AmountWithdrawn)
+                {
+                    Counter++;
+                }
             }
-
         }
     }
 
@@ -209,19 +212,22 @@ namespace BankAggExample
     {
         public decimal Value { get; private set; }
 
-        public void CountFromEvents(IEvent @event)
+        public void CountFromEvents(IEnumerable<IEvent> events)
         {
-            switch (@event)
+            foreach (var @event in events)
             {
-                case AmountWithdrawn aw:
-                    Value -= aw.Amount;
-                    break;
-                case AmountDeposited ad:
-                    Value += ad.Amount;
-                    break;
-                case AccountCreated ac:
-                    Value += ac.DepositAmount;
-                    break;
+                switch (@event)
+                {
+                    case AmountWithdrawn aw:
+                        Value -= aw.Amount;
+                        break;
+                    case AmountDeposited ad:
+                        Value += ad.Amount;
+                        break;
+                    case AccountCreated ac:
+                        Value += ac.DepositAmount;
+                        break;
+                }
             }
 
         }
@@ -229,22 +235,25 @@ namespace BankAggExample
 
     public class ConsoleWriter
     {
-        public void CountFromEvents(IEvent @event)
+        public void CountFromEvents(IEnumerable<IEvent> events)
         {
-            Type eventType = @event.GetType();
-            string typeName = eventType.Name;
-
-            switch (@event)
+            foreach (var @event in events)
             {
-                case AmountWithdrawn aw:
-                    Console.WriteLine($"CW - AmountWithdrawn: {aw.Amount}");
-                    break;
-                case AmountDeposited ad:
-                    Console.WriteLine($"CW - AmountDeposited: {ad.Amount}");
-                    break;
-                case AccountCreated ac:
-                    Console.WriteLine($"CW - AccountCreated with deposit amount: {ac.DepositAmount}");
-                    break;
+                Type eventType = @event.GetType();
+                string typeName = eventType.Name;
+
+                switch (@event)
+                {
+                    case AmountWithdrawn aw:
+                        Console.WriteLine($"CW - AmountWithdrawn: {aw.Amount}");
+                        break;
+                    case AmountDeposited ad:
+                        Console.WriteLine($"CW - AmountDeposited: {ad.Amount}");
+                        break;
+                    case AccountCreated ac:
+                        Console.WriteLine($"CW - AccountCreated with deposit amount: {ac.DepositAmount}");
+                        break;
+                }
             }
         }
     }
