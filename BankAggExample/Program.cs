@@ -10,6 +10,7 @@ using BankAggExample.Application.Service;
 using BankAggExample.Command;
 using BankAggExample.Domain;
 using BankAggExample.Domain.Events;
+using BankAggExample.Read.Projections;
 using CQRSlite.Domain;
 using CQRSlite.Events;
 using MediatR;
@@ -231,89 +232,11 @@ namespace BankAggExample
         }
     }
 
-    public class WithdrawCounter : BaseProjection<WithdrawCounter>
-    {
-        public int Counter { get; private set; }
+    
 
-        protected override Task HandleEvents(IEnumerable<IEvent> events, CancellationToken cancellationToken)
-        {
-            CountFromEvents(events);
-            return Task.FromResult(0);
-        }
+    
 
-        protected void CountFromEvents(IEnumerable<IEvent> events)
-        {
-            foreach (var @event in events)
-            {
-                if (@event is AmountWithdrawn)
-                {
-                    Counter++;
-                }
-            }
-        }
-    }
-
-    public class TotalBankValue : BaseProjection<TotalBankValue>
-    {
-        public decimal Value { get; private set; }
-
-        protected override Task HandleEvents(IEnumerable<IEvent> events, CancellationToken cancellationToken)
-        {
-            CountFromEvents(events);
-            return Task.FromResult(0);
-        }
-
-        protected void CountFromEvents(IEnumerable<IEvent> events)
-        {
-            foreach (var @event in events)
-            {
-                switch (@event)
-                {
-                    case AmountWithdrawn aw:
-                        Value -= aw.Amount;
-                        break;
-                    case AmountDeposited ad:
-                        Value += ad.Amount;
-                        break;
-                    case AccountCreated ac:
-                        Value += ac.DepositAmount;
-                        break;
-                }
-            }
-
-        }
-    }
-
-    public class ConsoleWriter : BaseProjection<ConsoleWriter>
-    {
-        protected override Task HandleEvents(IEnumerable<IEvent> events, CancellationToken cancellationToken)
-        {
-            CountFromEvents(events);
-            return Task.FromResult(0);
-        }
-
-        protected void CountFromEvents(IEnumerable<IEvent> events)
-        {
-            foreach (var @event in events)
-            {
-                Type eventType = @event.GetType();
-                string typeName = eventType.Name;
-
-                switch (@event)
-                {
-                    case AmountWithdrawn aw:
-                        Console.WriteLine($"CW - AmountWithdrawn: {aw.Amount}");
-                        break;
-                    case AmountDeposited ad:
-                        Console.WriteLine($"CW - AmountDeposited: {ad.Amount}");
-                        break;
-                    case AccountCreated ac:
-                        Console.WriteLine($"CW - AccountCreated with deposit amount: {ac.DepositAmount}");
-                        break;
-                }
-            }
-        }
-    }
+    
 
     #endregion
 }
