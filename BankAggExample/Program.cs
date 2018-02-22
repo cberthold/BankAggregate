@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
 using Autofac;
+using BankAggExample.DomainEvents;
 using CQRSlite.Domain;
 using CQRSlite.Events;
 
@@ -254,68 +255,7 @@ namespace BankAggExample
     }
 
     #endregion
-
-    #region Events
-
-    public class AmountDeposited : IEvent
-    {
-        #region IEvent props
-
-        public Guid Id { get; set; }
-        public int Version { get; set; }
-        public DateTimeOffset TimeStamp { get; set; }
-
-        #endregion
-
-        public decimal Amount { get; }
-
-        public AmountDeposited(decimal amount)
-        {
-            Amount = amount;
-        }
-    }
-
-    public class AmountWithdrawn : IEvent
-    {
-        #region IEvent props
-
-        public Guid Id { get; set; }
-        public int Version { get; set; }
-        public DateTimeOffset TimeStamp { get; set; }
-
-        #endregion
-
-        public decimal Amount { get; }
-
-        public AmountWithdrawn(decimal amount)
-        {
-            Amount = amount;
-        }
-    }
-
-
-    public class AccountCreated : IEvent
-    {
-        #region IEvent props
-
-        public Guid Id { get; set; }
-        public int Version { get; set; }
-        public DateTimeOffset TimeStamp { get; set; }
-
-        #endregion
-
-        public decimal DepositAmount { get; }
-        public DateTime DateOpened { get; }
-
-        public AccountCreated(decimal depositAmount, DateTime dateOpened)
-        {
-            DepositAmount = depositAmount;
-            DateOpened = dateOpened;
-        }
-    }
-
-    #endregion
-
+    
     #region projections
 
     public class GenericEventPublisher : IEventPublisher
