@@ -22,4 +22,20 @@ namespace BankAggExample.Infrastructure
             return _innerHandler.Handle(message, cancellationToken);
         }
     }
+
+    internal class RequestHandlerWrapper<TRequest> : IRequestHandler<TRequest>
+        where TRequest : IRequest
+    {
+        private readonly IRequestHandler<TRequest> _innerHandler;
+
+        public RequestHandlerWrapper(IRequestHandler<TRequest> innerHandler)
+        {
+            _innerHandler = innerHandler;
+        }
+
+        public Task Handle(TRequest message, CancellationToken cancellationToken)
+        {
+            return _innerHandler.Handle(message, cancellationToken);
+        }
+    }
 }

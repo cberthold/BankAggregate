@@ -22,15 +22,20 @@ namespace Autofac
             Decorate(builder, assembly);
         }
 
-        private static void RegisterRequestDecorator(ContainerBuilder builder, Type decoratorType)
+        private static void RegisterRequestWithResponseDecorator(ContainerBuilder builder, Type decoratorType)
         {
             builder.RegisterGenericDecorator(decoratorType, typeof(IRequestHandler<,>), fromKey: RequestKey);
+        }
+
+        private static void RegisterRequestDecorator(ContainerBuilder builder, Type decoratorType)
+        {
+            builder.RegisterGenericDecorator(decoratorType, typeof(IRequestHandler<>), fromKey: RequestKey);
         }
 
         private static void RegisterRequestHandlersFromAssembly(ContainerBuilder builder, Assembly assembly)
         {
             builder.RegisterAssemblyTypes(assembly).As(t => t.GetTypeInfo().GetInterfaces()
-                .Where(i => i.IsClosedTypeOf(typeof(IRequestHandler<,>))).Select(i => new KeyedService(RequestKey, i)));
+                .Where(i => i.IsClosedTypeOf(typeof(IRequestHandler<,>)) || i.IsClosedTypeOf(typeof(IRequestHandler<>))).Select(i => new KeyedService(RequestKey, i)));
         }
         
         private static void RegisterNotificationHandlersFromAssembly(ContainerBuilder builder, Assembly assembly)
@@ -56,7 +61,8 @@ namespace Autofac
 
             RegisterRequestHandlersFromAssembly(builder, handlersAssembly);
             RegisterNotificationHandlersFromAssembly(builder, handlersAssembly);
-            RegisterRequestDecorator(builder, typeof(RequestHandlerWrapper<,>));
+            RegisterRequestWithResponseDecorator(builder, typeof(RequestHandlerWrapper<,>));
+            RegisterRequestDecorator(builder, typeof(RequestHandlerWrapper<>));
         }
     }
 }
