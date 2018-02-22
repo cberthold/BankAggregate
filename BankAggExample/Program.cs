@@ -3,10 +3,12 @@ using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
 using Autofac;
+using BankAggExample.Command;
 using BankAggExample.Domain;
 using BankAggExample.DomainEvents;
 using CQRSlite.Domain;
 using CQRSlite.Events;
+using MediatR;
 
 namespace BankAggExample
 {
@@ -23,7 +25,7 @@ namespace BankAggExample
                         var manager = container.Resolve<IBankManager>();
 
                         var accountId = await manager.CreateNewAccount();
-                        
+
                         await manager.DepositAmount(accountId, 20);
 
                         await manager.WithdrawAmount(accountId, 10);
@@ -114,52 +116,39 @@ namespace BankAggExample
     {
 
         private readonly ISession session;
-        public BankManager(ISession session)
+        private readonly IMediator mediator;
+        public BankManager(ISession session, IMediator mediator)
         {
             this.session = session;
+            this.mediator = mediator;
         }
 
         public async Task<Guid> CreateNewAccount()
         {
-            Console.WriteLine($"Bank Manager new account");
-            // create new account
-            var account = AccountAggregate.StartNewAccount();
-            // add to session
-            await session.Add(account);
-            // save
-            await session.Commit();
-
-            Console.WriteLine($"Bank Manager completed CreateNewAccount Balance: {account.CurrentAccountBalance}");
-            // return new id
-            return account.Id;
+            var token = new CancellationToken();
+            var command = new CreateNewAccountCommand();
+            return await mediator.Send(command, token);
         }
 
         public async Task DepositAmount(Guid accountId, decimal amount)
         {
-            Console.WriteLine($"Bank Manager deposit amount ${amount}");
-            var account = await session.Get<AccountAggregate>(accountId);
-            account.Deposit(amount);
-            await session.Commit();
-            Console.WriteLine($"Bank Manager completed DepositAmount Balance: {account.CurrentAccountBalance}");
+            var token = new CancellationToken();
+            var command = new DepositAmountCommand(accountId, amount);
+            await mediator.Send(command, token);
         }
 
         public async Task TransferFunds(Guid fromAccountId, Guid toAccountId, decimal amountToTransfer)
         {
-            Console.WriteLine($"Bank Manager transfer amount ${amountToTransfer}");
-            var fromAccount = await session.Get<AccountAggregate>(fromAccountId);
-            var toAccount = await session.Get<AccountAggregate>(toAccountId);
-            fromAccount.Transfer(toAccount, amountToTransfer);
-            await session.Commit();
-            Console.WriteLine($"Bank Manager completed DepositAmount from account balance: {fromAccount.CurrentAccountBalance} to account balance {toAccount.CurrentAccountBalance}");
+            var token = new CancellationToken();
+            var command = new TransferFundsCommand(fromAccountId, toAccountId, amountToTransfer);
+            await mediator.Send(command, token);
         }
 
         public async Task WithdrawAmount(Guid accountId, decimal amount)
         {
-            Console.WriteLine($"Bank Manager withdraw amount ${amount}");
-            var account = await session.Get<AccountAggregate>(accountId);
-            account.Withdraw(amount);
-            await session.Commit();
-            Console.WriteLine($"Bank Manager completed WithdrawAmount Balance: {account.CurrentAccountBalance}");
+            var token = new CancellationToken();
+            var command = new WithdrawAmountCommand(accountId, amount);
+            await mediator.Send(command, token);
         }
     }
 
@@ -172,7 +161,7 @@ namespace BankAggExample
     }
 
     #endregion
-    
+
     #region projections
 
     public class GenericEventPublisher : IEventPublisher
