@@ -37,8 +37,8 @@ namespace BankAggExample.Infrastructure.Projections
         private async Task HandleEvent<TEvent>(TEvent @event, ProjectionHandlerDescriptor descriptor, CancellationToken cancellationToken)
             where TEvent : IEvent
         {
-            var genericType = typeof(IHandleProjectedEvent<>).MakeGenericType(descriptor.EventType);
-            var genericMethod = genericType.GetMethod("HandleEvent", BindingFlags.Public);
+            var genericType = descriptor.EventInterfaceType;
+            var genericMethod = genericType.GetMethod("HandleEvent");
             var task = (Task)genericMethod.Invoke(this, new object[] { @event, cancellationToken });
             await task.ConfigureAwait(false);
         }
@@ -59,7 +59,7 @@ namespace BankAggExample.Infrastructure.Projections
                     hasHandler = true;
                 }
 
-                var descriptorBuilt = new ProjectionHandlerDescriptor(t, hasHandler);
+                var descriptorBuilt = new ProjectionHandlerDescriptor(t, hasHandler, genericInterfaceToFind);
                 return descriptorBuilt;
             };
 

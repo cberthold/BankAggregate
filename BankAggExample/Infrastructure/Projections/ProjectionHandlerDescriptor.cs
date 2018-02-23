@@ -8,11 +8,13 @@ namespace BankAggExample.Infrastructure.Projections
     {
         public Type EventType { get; }
         public bool HasHandler { get; }
+        public Type EventInterfaceType { get; }
 
-        public ProjectionHandlerDescriptor(Type eventType, bool hasHandler)
+        public ProjectionHandlerDescriptor(Type eventType, bool hasHandler, Type eventInterfaceType)
         {
             EventType = eventType;
             HasHandler = hasHandler;
+            EventInterfaceType = eventInterfaceType;
         }
     }
 }
