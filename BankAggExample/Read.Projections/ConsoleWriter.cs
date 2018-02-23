@@ -9,8 +9,18 @@ using CQRSlite.Events;
 
 namespace BankAggExample.Read.Projections
 {
-    public class ConsoleWriter : BaseProjection<ConsoleWriter>
+    public class ConsoleWriter : BaseProjection<ConsoleWriter>, 
+        IHandleProjectedEvent<AmountWithdrawn>,
+        IHandleProjectedEvent<AmountDeposited>,
+        IHandleProjectedEvent<AccountCreated>
     {
+        /*
+        /// <summary>
+        /// This is the same as implementing the interfaces above
+        /// </summary>
+        /// <param name="events"></param>
+        /// <param name="cancellationToken"></param>
+        /// <returns></returns>
         protected override Task HandleEvents(IEnumerable<IEvent> events, CancellationToken cancellationToken)
         {
             CountFromEvents(events);
@@ -37,6 +47,24 @@ namespace BankAggExample.Read.Projections
                         break;
                 }
             }
+        }
+        */
+        public Task HandleEvent(AmountWithdrawn @event, CancellationToken cancellationToken)
+        {
+            Console.WriteLine($"CW - AmountWithdrawn: {@event.Amount}");
+            return Task.FromResult(0);
+        }
+
+        public Task HandleEvent(AmountDeposited @event, CancellationToken cancellationToken)
+        {
+            Console.WriteLine($"CW - AmountDeposited: {@event.Amount}");
+            return Task.FromResult(0);
+        }
+
+        public Task HandleEvent(AccountCreated @event, CancellationToken cancellationToken)
+        {
+            Console.WriteLine($"CW - AccountCreated with deposit amount: {@event.DepositAmount}");
+            return Task.FromResult(0);
         }
     }
 }

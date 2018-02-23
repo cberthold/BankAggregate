@@ -9,10 +9,18 @@ using CQRSlite.Events;
 
 namespace BankAggExample.Read.Projections
 {
-    public class WithdrawCounter : BaseProjection<WithdrawCounter>
+    public class WithdrawCounter : BaseProjection<WithdrawCounter>,
+        IHandleProjectedEvent<AmountWithdrawn>
     {
         public int Counter { get; private set; }
-
+        
+        /*
+        /// <summary>
+        /// This HandleEvents method is the same as implementing the IHandleProjectedEvent interface
+        /// </summary>
+        /// <param name="events"></param>
+        /// <param name="cancellationToken"></param>
+        /// <returns></returns>
         protected override Task HandleEvents(IEnumerable<IEvent> events, CancellationToken cancellationToken)
         {
             CountFromEvents(events);
@@ -28,6 +36,13 @@ namespace BankAggExample.Read.Projections
                     Counter++;
                 }
             }
+        }
+        */
+
+        public Task HandleEvent(AmountWithdrawn @event, CancellationToken cancellationToken)
+        {
+            Counter++;
+            return Task.FromResult(0);
         }
     }
 }
